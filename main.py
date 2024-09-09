@@ -57,6 +57,10 @@ def main(message):
 # Хендлер для обработки локации
 @bot.message_handler(content_types=['location'])
 def location(message):
+    if message.location:
+        print(f"Локация: {message.location.latitude}, {message.location.longitude}")
+    else:
+        print("Локация не передана")
     user = session.query(User).filter_by(user_id=message.from_user.id).first()
     if user:
         user.location_latitude = message.location.latitude
