@@ -71,7 +71,13 @@ def location(message):
     benz = types.KeyboardButton('⛽️ Бензиновые')
     elecro = types.KeyboardButton('⚡️ Электро')
     markup.row(benz, elecro)
-    bot.send_message(message.chat.id, reply_markup=markup)
+    print(f"Markup: {markup}")
+
+    # bot.send_message(message.chat.id, reply_markup=markup)
+    try:
+        bot.send_message(message.chat.id, "Выберите категорию:", reply_markup=markup)
+    except Exception as e:
+        print(f"Ошибка при отправке сообщения: {e}")
 
 # Хендлер для текстовых сообщений
 @bot.message_handler(content_types=['text'])
