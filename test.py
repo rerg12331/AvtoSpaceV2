@@ -1,41 +1,31 @@
 import telebot
 import json
 import datetime
+import time
 from telebot import types
-from fastapi import FastAPI, Request
 from config import token, api_key
 from bot.get_locations import get_nearest_gas_stations_yandex
 from bot.key_board_menu import generate_menu
 from requests.exceptions import ConnectionError, Timeout, RequestException
 from bot.db import session, User, Location
 
-# Инициализация бота и FastAPI приложения
 bot = telebot.TeleBot(token)
-app = FastAPI()
-
-# Вебхук для Telegram
-@app.post(f"/{token}")
-async def process_webhook(request: Request):
-    json_str = await request.body()
-    update = telebot.types.Update.de_json(json_str.decode('utf-8'))
-    bot.process_new_updates([update])
-    return {"status": "ok"}
-
-# Хендлер для команды /start
 @bot.message_handler(commands=['start'])
 def main(message):
     existing_user = session.query(User).filter_by(user_id=message.from_user.id).first()
     if existing_user is None:
         date_time = datetime.datetime.fromtimestamp(message.date)
         new_user = User(
-            user_id=message.from_user.id,
-            name=message.from_user.first_name,
-            username=message.from_user.username,
-            chat_id=message.chat.id,
-            location_latitude=None,
-            location_longitude=None,
-            date_registered=date_time.strftime('%Y-%m-%d %H:%M:%S')
+            user_id = message.from_user.id,
+            name = message.from_user.first_name,
+            username = message.from_user.username,
+            chat_id = message.chat.id,
+            location_latitude = None,
+            location_longitude = None,
+            date_registered = date_time.strftime('%Y-%m-%d %H:%M:%S')
         )
+
+        # Добавление пользователя в базу данных
         session.add(new_user)
         session.commit()
 
@@ -52,13 +42,13 @@ def main(message):
         "Давайте начнем ваше путешествие с комфорта и уверенностью! Напишите мне, что вам нужно, и я помогу вам найти лучшую заправку.",
         parse_mode='html',
         reply_markup=markup
-    )
+        )
 
-# Хендлер для обработки локации
 @bot.message_handler(content_types=['location'])
 def location(message):
     user = session.query(User).filter_by(user_id=message.from_user.id).first()
     if user:
+        # Обновление значений location_latitude и location_longitude
         user.location_latitude = message.location.latitude
         user.location_longitude = message.location.longitude
         session.commit()
@@ -66,15 +56,15 @@ def location(message):
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
     benz = types.KeyboardButton('⛽️ Бензиновые')
     elecro = types.KeyboardButton('⚡️ Электро')
-    markup.row(benz, elecro)
-    bot.send_message(message.chat.id, reply_markup=markup)
+    markup.row(benz,elecro)
+    # message_info = f"Текущее местоположение: {message.location.latitude}, {message.location.longitude}"
+    bot.send_message(message.chat.id, reply_markup=markup) # , message_info
 
-# Хендлер для текстовых сообщений
 @bot.message_handler(content_types=['text'])
-def handle_text(message):
-    if message.text in ['⛽️ Бензиновые', '⚡️ Электро']:
+def location(message):
+    if message.text == '⛽️ Бензиновые' or message.text == '⚡️ Электро':
         user = session.query(User).filter_by(user_id=message.from_user.id).first()
-        text = "Заправка" if message.text == "⛽️ Бензиновые" else "Электрозаправка"
+        text = "Заправка" if message.text == "⛽️ Бензиновые" else "Электрозаправка" if message.text == "⚡️ Электро" else "Заправка"
         info = get_nearest_gas_stations_yandex(api_key, user.location_latitude, user.location_longitude, text)
 
         user_locations = session.query(Location).filter_by(user_id=message.from_user.id).first()
@@ -85,16 +75,15 @@ def handle_text(message):
         else:
             user_locations.data = info
             session.commit()
+        bot.send_message(message.chat.id, "Выберите заправку:", reply_markup=generate_menu(start_index=0, items = info))
 
-        bot.send_message(message.chat.id, "Выберите заправку:", reply_markup=generate_menu(start_index=0, items=info))
-
-# Хендлер для обработки нажатий на кнопки
 @bot.callback_query_handler(func=lambda call: call.data.startswith('item_') or call.data.startswith('next_') or call.data.startswith('back_'))
 def handle_callback(call):
     location = session.query(Location).filter_by(user_id=call.from_user.id).first()
     info = location.data
     if call.data.startswith("item_"):
         item_index = int(call.data.split("_")[1])
+        print(item_index)
         bot.answer_callback_query(call.id, f"Вы выбрали: {info[item_index]['name']}")
         info_text = (
             f"⚡️: <b>{info[item_index]['name']}</b>\n\n"
@@ -110,12 +99,11 @@ def handle_callback(call):
 
     elif call.data.startswith("next_"):
         start_index = int(call.data.split("_")[1]) + 5
-        bot.edit_message_reply_markup(chat_id=call.message.chat.id, message_id=call.message.message_id, reply_markup=generate_menu(start_index, items=info))
+        bot.edit_message_reply_markup(chat_id=call.message.chat.id, message_id=call.message.message_id, reply_markup=generate_menu(start_index, items = info))
     elif call.data.startswith("back_"):
         start_index = int(call.data.split("_")[1]) - 5
-        bot.edit_message_reply_markup(chat_id=call.message.chat.id, message_id=call.message.message_id, reply_markup=generate_menu(start_index, items=info))
+        bot.edit_message_reply_markup(chat_id=call.message.chat.id, message_id=call.message.message_id, reply_markup=generate_menu(start_index, items = info))
 
-# Хендлер для отображения локации
 @bot.callback_query_handler(func=lambda call: call.data.startswith('show-location_'))
 def show_location_handler(call):
     location = session.query(Location).filter_by(user_id=call.from_user.id).first()
@@ -125,18 +113,18 @@ def show_location_handler(call):
     markup.row(search)
     item_index = int(call.data.split("_")[1])
     bot.send_location(call.message.chat.id, info[item_index]['coordinates'][1], info[item_index]['coordinates'][0], reply_markup=markup)
+    
 
-# Запуск FastAPI и настройка вебхуков
-if __name__ == "__main__":
-    import uvicorn
-    import os
+def jopa():
+    try:
+        bot.polling(non_stop=True)
+    except (ConnectionError, Timeout, RequestException) as e:
+        print(f"Ошибка подключения: {e}. Попробую еще раз через 5 секунд.")
+    except KeyboardInterrupt:
+        print("Завершение работы...")
+    except Exception as e:
+        print(f"Неизвестная ошибка: {e}. Попробую еще раз через 5 секунд.")
 
-    port = int(os.environ.get('PORT', 8000))
-    WEBHOOK_URL = f"https://<your-app-url>/{token}"
+if __name__ == '__main__':
+    jopa()
 
-    # Устанавливаем вебхук
-    bot.remove_webhook()
-    bot.set_webhook(url=WEBHOOK_URL)
-
-    # Запуск приложения
-    uvicorn.run(app, host="0.0.0.0", port=port)
