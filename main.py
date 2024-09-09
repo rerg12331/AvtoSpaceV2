@@ -132,7 +132,7 @@ if __name__ == "__main__":
     import os
 
     port = int(os.environ.get('PORT', 8000))
-    WEBHOOK_URL = f"https://<your-app-url>/{token}"
+    WEBHOOK_URL = f"https://avtospacev2.onrender.com/{token}"
 
     # Устанавливаем вебхук
     bot.remove_webhook()
