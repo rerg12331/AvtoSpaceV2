@@ -71,7 +71,7 @@ def location(message):
     benz = types.KeyboardButton('⛽️ Бензиновые')
     elecro = types.KeyboardButton('⚡️ Электро')
     markup.row(benz, elecro)
-    print(f"Markup: {markup}")
+    # print(f"Markup: {markup}")
 
     # bot.send_message(message.chat.id, reply_markup=markup)
     try:
